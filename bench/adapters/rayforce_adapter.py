@@ -584,12 +584,15 @@ class RayforceAdapter(Adapter):
         # Unwrap via .to_python() each rayforce scalar provides.
         d = result.to_dict()
         for col, vals in d.items():
-            if vals and hasattr(vals[0], "to_python"):
+            if vals and any(hasattr(v, "to_python") for v in vals):
                 # Wrapper note: `.to_python()` on F64 silently drops the
                 # typed-null bit (engine returns 0Nf for e.g. stddev on
                 # n<=1, but Python sees 0.0). Per-query nil handling
                 # lives below — q6 reconstructs nulls via _cnt.
-                d[col] = [v.to_python() for v in vals]
+                # v2 wrapper mixes plain floats (NaN for nulls) with
+                # wrapped scalars in one column — convert per element.
+                d[col] = [v.to_python() if hasattr(v, "to_python") else v
+                          for v in vals]
 
         # q6: replace v3_std with NaN where group size <= 1 (engine
         # returns 0Nf, but the wrapper drops the null bit and surfaces
